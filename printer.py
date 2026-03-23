@@ -1,14 +1,19 @@
+#! /bin/usr/env python3
 import requests
+import os
+from dotenv import load_dotenv
 from supabase import create_client, Client
 from datetime import datetime
 
-SUPABASE_URL = "https://SEU-PROJETO.supabase.co"
-SUPABASE_KEY = "SUA-CHAVE-ANON-OU-SERVICE-ROLE"
+load_dotenv()
+
+SUPABASE_URL = "SUPABASE_URL"
+SUPABASE_KEY = "SUPABASE_KEY"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 ZABBIX_URL = 'http://127.0.0.1/zabbix/api_jsonrpc.php'
-USER = 'seu_usuario_zabbix'
-PASSWORD = 'sua_senha_zabbix'
+USER = os.getenv("USER")
+PASSWORD = os.getenv("PASSWORD")
 
 def obter_token_zabbix():
     payload = {
