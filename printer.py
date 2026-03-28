@@ -90,8 +90,7 @@ def buscar_contador_zabbix(zabbix_id):
         "jsonrpc": "2.0",
         "method": "item.get",
         "params": {
-            # Adicionamos o "state" para saber se o Zabbix está conseguindo ler a impressora agora
-            "output": ["lastvalue", "name", "state"], 
+            "output": ["lastvalue", "name"],
             "hostids": zabbix_id,
             "filter": {"name": NOMES_DOS_CONTADORES}
         },
@@ -101,22 +100,11 @@ def buscar_contador_zabbix(zabbix_id):
     try:
         resp = requests.post(ZABBIX_URL, json=payload).json()
         itens = resp.get('result', [])
-        
         if itens:
-            item = itens[0]
-            valor_bruto = item.get('lastvalue')
-            estado_item = item.get('state') # '0' = Normal, '1' = Erro/Offline
-            
-            # Se a impressora está offline (state '1') ou sem valor, pulamos ela
-            if estado_item == '1' or not valor_bruto:
-                return None, None
-                
-            # Retorna o valor limpo se estiver tudo OK
-            return int(valor_bruto), item['name']
-            
+            return int(itens[0]['lastvalue']), itens[0]['name']
         return None, None
     except Exception as e:
-        # Se der erro de comunicação, não travamos o script, apenas retornamos vazio
+        print(f"❌ Erro ao consultar contador para o Zabbix ID {zabbix_id}: {e}")
         return None, None
 
 # ==========================================
@@ -178,10 +166,10 @@ def main():
     print(f"-> Sincronizando equipamentos...")
     hosts_zabbix = buscar_hosts_zabbix(id_grupo)
         
-    # === MÁGICA DO DEBUG PARA O SUPABASE ===
+        # === MÁGICA DO DEBUG PARA O SUPABASE ===
     try:
         print("-> A tentar ler a tabelaImpressoras no Supabase...")
-        resposta_db = supabase.table("tabelaImpressoras").select("id, zabbix_id, modelo_impressora").execute()
+        resposta_db = supabase.table("tabelaImpressoras").select("id, zabbix_id, modelo_impressora, endereco_ip").execute()
         impressoras_db = resposta_db.data
         print(f"   ✅ Leitura com sucesso! Foram encontradas {len(impressoras_db)} impressoras na base de dados.")
     except Exception as e:
@@ -199,6 +187,7 @@ def main():
     for host in hosts_zabbix:
         z_id = str(host['hostid'])
         if z_id not in mapa_impressoras:
+            # Chama a nossa nova função que "limpa" os dados
             dados_nova_impressora = tratar_dados_nova_impressora(host)
             
             print(f"➕ Nova impressora: {dados_nova_impressora['nome_maquina']}. Cadastrando no banco...")
@@ -217,8 +206,15 @@ def main():
     # ==========================================
     print("\n-> Iniciando a coleta de contadores...")
     for z_id, imp in mapa_impressoras.items():
+        
+        # Cria variáveis blindadas contra o KeyError
+        nome_seguro = imp.get('nome_maquina') or "Sem Nome"
+        ip_seguro = imp.get('endereco_ip') or "IP Desconhecido"
+        modelo_seguro = imp.get('modelo_impressora') or "Modelo Desconhecido"
+        
         valor_contador, nome_item = buscar_contador_zabbix(z_id)
         
+        # Garante que o contador não é nulo E é maior que 0
         if valor_contador is not None and valor_contador > 0:
             dados_contador = {
                 "id_impressora": imp['id'],
@@ -227,13 +223,16 @@ def main():
             
             try:
                 supabase.table("tabelaContador").insert(dados_contador).execute()
-                print(f"✅ SUCESSO: '{imp['modelo_impressora']}' [{nome_item}] - Contador: {valor_contador}")
+                print(f"✅ SUCESSO: '{nome_seguro}' (IP: {ip_seguro}) [{nome_item}] - Contador: {valor_contador}")
             except Exception as e:
-                 print(f"❌ Erro ao salvar contador da impressora '{imp['modelo_impressora']}': {e}")
+                 print(f"❌ Erro ao salvar contador da '{nome_seguro}' (IP: {ip_seguro}): {e}")
                  
         else:
-            print(f"⚠️ AVISO: Impressora '{imp['nome_maquina']}' (Modelo: {imp['modelo_impressora']}) offline ou sem dados. Pulando inserção...")
+            # Pula suavemente sem dar erro de KeyError
+            print(f"⚠️ AVISO: Impressora '{nome_seguro}' (IP: {ip_seguro}) offline ou contador zerado. Pulando...")
             continue
+
+    print(f"\n[{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}] Rotina finalizada com sucesso.")
 
 if __name__ == "__main__":
     main()
