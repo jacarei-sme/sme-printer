@@ -90,7 +90,8 @@ def buscar_contador_zabbix(zabbix_id):
         "jsonrpc": "2.0",
         "method": "item.get",
         "params": {
-            "output": ["lastvalue", "name"],
+            # Adicionamos o "state" para saber se o Zabbix está conseguindo ler a impressora agora
+            "output": ["lastvalue", "name", "state"], 
             "hostids": zabbix_id,
             "filter": {"name": NOMES_DOS_CONTADORES}
         },
@@ -100,11 +101,22 @@ def buscar_contador_zabbix(zabbix_id):
     try:
         resp = requests.post(ZABBIX_URL, json=payload).json()
         itens = resp.get('result', [])
+        
         if itens:
-            return int(itens[0]['lastvalue']), itens[0]['name']
+            item = itens[0]
+            valor_bruto = item.get('lastvalue')
+            estado_item = item.get('state') # '0' = Normal, '1' = Erro/Offline
+            
+            # Se a impressora está offline (state '1') ou sem valor, pulamos ela
+            if estado_item == '1' or not valor_bruto:
+                return None, None
+                
+            # Retorna o valor limpo se estiver tudo OK
+            return int(valor_bruto), item['name']
+            
         return None, None
     except Exception as e:
-        print(f"❌ Erro ao consultar contador para o Zabbix ID {zabbix_id}: {e}")
+        # Se der erro de comunicação, não travamos o script, apenas retornamos vazio
         return None, None
 
 # ==========================================
@@ -166,7 +178,7 @@ def main():
     print(f"-> Sincronizando equipamentos...")
     hosts_zabbix = buscar_hosts_zabbix(id_grupo)
         
-        # === MÁGICA DO DEBUG PARA O SUPABASE ===
+    # === MÁGICA DO DEBUG PARA O SUPABASE ===
     try:
         print("-> A tentar ler a tabelaImpressoras no Supabase...")
         resposta_db = supabase.table("tabelaImpressoras").select("id, zabbix_id, modelo_impressora").execute()
@@ -187,7 +199,6 @@ def main():
     for host in hosts_zabbix:
         z_id = str(host['hostid'])
         if z_id not in mapa_impressoras:
-            # Chama a nossa nova função que "limpa" os dados
             dados_nova_impressora = tratar_dados_nova_impressora(host)
             
             print(f"➕ Nova impressora: {dados_nova_impressora['nome_maquina']}. Cadastrando no banco...")
@@ -202,33 +213,27 @@ def main():
 
 
     # ==========================================
-    # COLETA DOS CONTADORES (COM DEBUG)
+    # COLETA DOS CONTADORES
     # ==========================================
     print("\n-> Iniciando a coleta de contadores...")
     for z_id, imp in mapa_impressoras.items():
         valor_contador, nome_item = buscar_contador_zabbix(z_id)
         
-        if valor_contador is not None:
-            # Aqui montamos o "pacote" de dados que vai para o banco
+        if valor_contador is not None and valor_contador > 0:
             dados_contador = {
                 "id_impressora": imp['id'],
                 "qtd_contador": valor_contador
             }
             
-            print(f"   [DEBUG] Tentando salvar na tabelaContador os dados: {dados_contador}")
-            
             try:
-                # Tenta fazer o insert
                 supabase.table("tabelaContador").insert(dados_contador).execute()
                 print(f"✅ SUCESSO: '{imp['modelo_impressora']}' [{nome_item}] - Contador: {valor_contador}")
-                
             except Exception as e:
-                 print(f"❌ ERRO EXATO DO SUPABASE AO INSERIR: {e}")
-                 print("DICA: Verifique se as colunas na 'tabelaContador' se chamam exatamente 'id_impressora' e 'qtd_contador'.")
+                 print(f"❌ Erro ao salvar contador da impressora '{imp['modelo_impressora']}': {e}")
+                 
         else:
-            print(f"⚠️ AVISO: Nenhum valor retornado para a impressora ID {imp['id']}.")
-
-    print(f"\n[{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}] Rotina finalizada com sucesso.")
+            print(f"⚠️ AVISO: Impressora '{imp['nome_maquina']}' (Modelo: {imp['modelo_impressora']}) offline ou sem dados. Pulando inserção...")
+            continue
 
 if __name__ == "__main__":
     main()
