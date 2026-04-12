@@ -1,16 +1,13 @@
-// Raiz/frontend/app/page.tsx
 import { createClient } from '@supabase/supabase-js';
+import Link from 'next/link';
 
-// Configuração das chaves (Certifique-se que estão na Vercel)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Atualização automática a cada 60 segundos
 export const revalidate = 60;
 
 export default async function Dashboard() {
-  // Busca os dados seguindo a estrutura exata do seu schema
   const { data: impressoras, error } = await supabase
     .from('tabelaImpressoras')
     .select(`
@@ -18,107 +15,65 @@ export default async function Dashboard() {
       nome_maquina,
       modelo_impressora,
       endereco_ip,
-      tabelaToner ( cor_toner, qtd_toner, id ),
-      tabelaContador ( qtd_contador, id )
+      tabelaToner ( qtd_toner ),
+      tabelaContador ( qtd_contador )
     `);
 
-  if (error) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-rose-50 p-10">
-        <div className="bg-white p-12 rounded-3xl shadow-2xl border-4 border-rose-200 text-center">
-          <h1 className="text-5xl font-extrabold text-rose-600 mb-6">Erro de Conexão</h1>
-          <p className="text-2xl text-rose-900">{error.message}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Lógica de cores conforme a imagem de referência
-  const getTonerColor = (percent: number) => {
-    if (percent >= 50) return 'bg-emerald-500'; // Verde
-    if (percent >= 15) return 'bg-amber-400';   // Amarelo
-    return 'bg-rose-500';                       // Vermelho
-  };
+  if (error) return <div>Erro ao carregar dados: {error.message}</div>;
 
   return (
-    // Container Principal: Otimizado para 1920x1080
-    <main className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans antialiased text-slate-900">
-      
-      {/* Cabeçalho Superior */}
-      <header className="flex items-center justify-between pb-10 mb-10 border-b-2 border-slate-200">
-        <div>
-          <h1 className="text-5xl font-extrabold tracking-tight text-slate-950 uppercase">
-            Monitoramento de Impressoras
-          </h1>
-          <p className="text-2xl text-slate-600 mt-2 font-medium">Secretaria Municipal de Educação - SME</p>
-        </div>
+    <main className="min-h-screen bg-gray-50 p-8 font-sans">
+      <div className="max-w-7xl mx-auto">
         
-        <div className="flex items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-          <span className="relative flex h-4 w-4">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span>
-          </span>
-          <p className="text-xl font-bold text-slate-900 uppercase tracking-wider">Live Dashboard</p>
-        </div>
-      </header>
+        <header className="mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Monitoramento de Impressoras</h1>
+            <p className="text-gray-500 font-medium mt-1">SME - Visão Geral</p>
+          </div>
+        </header>
 
-      {/* Grid de Cards - 3 Colunas para preencher bem o Full HD */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-        {impressoras?.map((imp) => {
-          const toner = imp.tabelaToner?.[0]; // Pega a primeira medição de toner
-          const contador = imp.tabelaContador?.[0]; // Pega o último contador
-          const nivelToner = toner?.qtd_toner ?? 0;
-          const corBarra = getTonerColor(nivelToner);
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {impressoras?.map((imp) => {
+            const toner = imp.tabelaToner?.[0];
+            const nivelToner = toner?.qtd_toner ?? 0;
 
-          return (
-            <div key={imp.id} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 flex flex-col justify-between hover:scale-[1.02] transition-transform duration-300">
-              
-              {/* Título e Identificação */}
-              <div className="mb-8">
-                <div className="flex justify-between items-start">
-                  <h2 className="text-3xl font-black text-slate-950 leading-none truncate pr-2 uppercase">
-                    {imp.nome_maquina || imp.modelo_impressora}
-                  </h2>
-                </div>
-                <p className="text-xl text-slate-500 font-bold mt-2 tracking-tight">
-                  IP: {imp.endereco_ip}
-                </p>
-              </div>
-
-              {/* Área da Barra de Toner - Seguindo o padrão visual da imagem */}
-              <div className="relative mb-8">
-                <div className="flex justify-between items-end mb-2">
-                  <span className="text-lg font-black text-slate-700 uppercase tracking-widest">Nível de Suprimento</span>
-                </div>
-                
-                {/* Trilha da Barra */}
-                <div className="w-full bg-slate-100 rounded-2xl h-14 border-2 border-slate-200 overflow-hidden relative flex items-center shadow-inner">
-                  {/* Preenchimento Dinâmico */}
-                  <div 
-                    className={`${corBarra} h-full transition-all duration-1000 ease-in-out shadow-[4px_0_10px_rgba(0,0,0,0.1)]`}
-                    style={{ width: `${nivelToner}%` }}
-                  ></div>
+            return (
+              // O Link transforma o card inteiro em um botão clicável
+              <Link href={`/impressora/${imp.id}`} key={imp.id}>
+                <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer h-full flex flex-col justify-between group">
                   
-                  {/* Texto do Percentual em Destaque */}
-                  <span className="absolute right-6 text-3xl font-black text-slate-900 drop-shadow-sm">
-                    {nivelToner}%
-                  </span>
+                  <div className="mb-4">
+                    <h2 className="text-xl font-bold text-gray-800 group-hover:text-blue-600 transition-colors">
+                      {imp.nome_maquina || imp.modelo_impressora}
+                    </h2>
+                    <p className="text-sm text-gray-500">IP: {imp.endereco_ip}</p>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-end mb-1">
+                      <span className="text-sm font-semibold text-gray-600">Toner</span>
+                      <span className={`text-sm font-bold ${nivelToner <= 15 ? 'text-red-600' : 'text-gray-700'}`}>
+                        {nivelToner}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div 
+                        className={`h-3 rounded-full ${nivelToner >= 50 ? 'bg-green-500' : nivelToner >= 15 ? 'bg-yellow-400' : 'bg-red-500'}`}
+                        style={{ width: `${nivelToner}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 text-sm text-blue-500 font-medium text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                    Ver detalhes &rarr;
+                  </div>
+
                 </div>
-              </div>
-
-              {/* Rodapé do Card: Contador de Páginas */}
-              <div className="pt-6 border-t-2 border-slate-50 flex justify-between items-center">
-                <span className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Páginas Totais</span>
-                <span className="text-3xl font-black text-blue-600">
-                  {contador?.qtd_contador?.toLocaleString('pt-BR') || '---'}
-                </span>
-              </div>
-
-            </div>
-          );
-        })}
+              </Link>
+            );
+          })}
+        </div>
       </div>
-      
-    </main> // Corrigido aqui: </main> em vez de </footer>
+    </main>
   );
 }
