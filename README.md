@@ -1,4 +1,4 @@
-# SME-PRINTER: Sistema de Monitoramento e Análise de Uso de Impressoras 🖨️
+# SME-PRINTER: Sistema de Monitoramento e Análise de Uso de Impressoras
 
 Repositório destinado ao controle de versão dos scripts e códigos do **Projeto Integrador III da Univesp (1º Semestre de 2026) - Grupo 09**.
 
@@ -9,7 +9,7 @@ Este projeto tem como objetivo desenvolver um sistema automatizado de monitorame
 Atualmente, os dados gerados pelas impressoras (como níveis de toner e contadores de páginas) não são monitorados ativamente pela Unidade de Tecnologias Educacionais, sendo apenas enviados à empresa locadora, o que gera ineficiências.
 O SME-PRINTER visa automatizar a coleta e análise desses dados para embasar a tomada de decisão, otimizar a gestão de suprimentos e promover a redução de custos operacionais.
 
-## 🏗️ Arquitetura da Solução
+## Arquitetura da Solução
 
 O sistema foi estruturado em uma arquitetura de três camadas (Backend, Banco de Dados e Frontend):
 
@@ -17,7 +17,7 @@ O sistema foi estruturado em uma arquitetura de três camadas (Backend, Banco de
 2. **Armazenamento (Banco de Dados em Nuvem):** Os dados coletados são validados (exigindo contadores maiores que zero) e enviados para um banco de dados relacional hospedado na nuvem, garantindo segurança através de políticas de nível de linha (RLS).
 3. **Visualização (Frontend):** Prototipagem de um dashboard web interativo para fornecer uma interface limpa e intuitiva aos gestores, facilitando a análise de volumetria e consumo.
 
-## 🚀 Tecnologias Utilizadas
+## Tecnologias Utilizadas
 
 A infraestrutura tecnológica do projeto baseia-se nas seguintes ferramentas e serviços:
 
