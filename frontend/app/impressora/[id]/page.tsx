@@ -7,25 +7,40 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export const revalidate = 60;
 
-export default async function DetalhesImpressora({ params }: { params: { id: string } }) {
-  const { id } = params;
+// No Next.js 15, o params deve ser tratado como uma Promise
+export default async function DetalhesImpressora({ params }: { params: Promise<{ id: string }> }) {
+  
+  // 1. Aguarda o recebimento do ID da URL
+  const { id } = await params;
 
-  // Busca dados de apenas 1 impressora
+  // 2. Busca os dados no Supabase
   const { data: impressora, error } = await supabase
     .from('tabelaImpressoras')
-    .select(`*, tabelaToner ( cor_toner, qtd_toner, id ), tabelaContador ( qtd_contador, id )`)
+    .select(`
+      *, 
+      tabelaToner ( cor_toner, qtd_toner, id ), 
+      tabelaContador ( qtd_contador, id )
+    `)
     .eq('id', id)
     .single();
 
+  // 3. Caso dê erro ou não encontre, mostra o erro detalhado
   if (error || !impressora) {
+    console.error("Erro Supabase:", error); // Isso aparece nos logs da Vercel
     return (
-      <div className="min-h-screen bg-slate-50 p-8 flex flex-col items-center justify-center">
-        <h1 className="text-2xl font-bold text-rose-600 mb-4">Impressora não encontrada</h1>
-        <Link href="/" className="text-blue-600 font-bold hover:underline">&larr; Voltar para o início</Link>
+      <div className="min-h-screen bg-slate-50 p-8 flex flex-col items-center justify-center font-sans">
+        <div className="bg-white p-10 rounded-3xl shadow-lg text-center border border-slate-200">
+          <h1 className="text-4xl font-black text-rose-600 mb-4">Ops!</h1>
+          <p className="text-xl text-slate-600 mb-6">Impressora com ID <span className="font-mono font-bold">"{id}"</span> não foi localizada.</p>
+          <Link href="/" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all">
+            Voltar ao Início
+          </Link>
+        </div>
       </div>
     );
   }
 
+  // 4. Lógica de cores e dados
   const toner = impressora.tabelaToner?.[0];
   const contador = impressora.tabelaContador?.[0];
   const nivelToner = toner?.qtd_toner ?? 0;
@@ -35,52 +50,67 @@ export default async function DetalhesImpressora({ params }: { params: { id: str
     <main className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans text-slate-900">
       <div className="max-w-4xl mx-auto">
         
-        {/* Botão de Voltar */}
-        <Link href="/" className="inline-flex items-center gap-2 text-sm md:text-base text-slate-500 hover:text-blue-700 font-bold transition-all duration-300 mb-6 bg-white px-5 py-2.5 rounded-xl shadow-sm border border-slate-200 hover:shadow-md">
-          &larr; Voltar para o Dashboard
+        {/* Botão Voltar */}
+        <Link href="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-700 font-bold mb-8 bg-white px-5 py-2.5 rounded-xl shadow-sm border border-slate-200 transition-all">
+          &larr; Voltar para Visão Geral
         </Link>
 
-        {/* Informações Superiores da Impressora */}
-        <div className="mb-8 bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between md:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{impressora.nome_maquina || impressora.modelo_impressora}</h1>
-            <p className="text-base text-slate-500 font-medium mt-1">Modelo: {impressora.modelo_impressora}</p>
-            <div className="mt-4 inline-block bg-blue-50 text-blue-700 px-4 py-2 rounded-lg font-bold border border-blue-100 text-sm tracking-wide">
-              Endereço IP: {impressora.endereco_ip}
+        {/* Info Principal */}
+        <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 mb-8">
+          <div className="flex flex-col md:flex-row justify-between md:items-start gap-4">
+            <div>
+              <span className="text-blue-600 font-black uppercase tracking-widest text-sm">Detalhes do Equipamento</span>
+              <h1 className="text-4xl font-black text-slate-900 mt-2">
+                {impressora.nome_maquina || "Sem Nome"}
+              </h1>
+              <p className="text-xl text-slate-500 font-medium">{impressora.modelo_impressora}</p>
+            </div>
+            <div className="bg-slate-100 px-6 py-3 rounded-2xl border border-slate-200">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Endereço IP</p>
+              <p className="text-xl font-mono font-bold text-slate-700">{impressora.endereco_ip}</p>
             </div>
           </div>
         </div>
 
-        {/* Grade de Detalhes (Toner e Contador) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Grade de Informações de Uso */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           
-          {/* Card do Toner Gigante */}
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
-            <h2 className="text-xl font-bold text-slate-800 mb-6">Status do Suprimento</h2>
-            <div className="flex justify-center mb-6">
-              <div className="text-6xl font-black text-slate-900">
-                {nivelToner}<span className="text-3xl text-slate-400">%</span>
+          {/* Card de Toner */}
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
+            <h2 className="text-xl font-bold text-slate-800 mb-8 flex items-center gap-2">
+              <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
+              Nível de Suprimento
+            </h2>
+            
+            <div className="relative flex flex-col items-center">
+              <div className="text-7xl font-black text-slate-900 mb-6">
+                {nivelToner}<span className="text-3xl text-slate-300">%</span>
               </div>
-            </div>
-            <div className="w-full bg-slate-200 rounded-full h-6 border border-slate-300 overflow-hidden shadow-inner">
-              <div 
-                className={`h-full rounded-full transition-all duration-1000 ease-out ${corToner}`}
-                style={{ width: `${nivelToner}%` }}
-              ></div>
-            </div>
-            {toner?.cor_toner && (
-              <p className="text-center mt-4 text-slate-500 font-medium uppercase tracking-widest text-sm">
-                Cor: {toner.cor_toner}
+              
+              <div className="w-full bg-slate-100 rounded-2xl h-8 border-2 border-slate-200 overflow-hidden shadow-inner">
+                <div 
+                  className={`h-full transition-all duration-1000 ease-out ${corToner}`}
+                  style={{ width: `${nivelToner}%` }}
+                ></div>
+              </div>
+              <p className="mt-4 text-slate-400 font-bold uppercase text-xs tracking-widest">
+                Toner: {toner?.cor_toner || 'Preto'}
               </p>
-            )}
+            </div>
           </div>
 
-          {/* Card do Contador de Páginas */}
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-center items-center text-center">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">Volume de Impressão</h2>
-            <p className="text-slate-500 mb-2 font-medium">Total de páginas impressas:</p>
-            <div className="text-4xl md:text-5xl font-black text-blue-600 bg-blue-50 w-full py-8 rounded-xl border border-blue-200 mt-2 flex justify-center items-center shadow-inner">
-              {contador?.qtd_contador?.toLocaleString('pt-BR') || '---'}
+          {/* Card de Contador */}
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col">
+            <h2 className="text-xl font-bold text-slate-800 mb-8 flex items-center gap-2">
+              <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
+              Contador Total
+            </h2>
+            
+            <div className="flex-1 flex flex-col justify-center items-center">
+              <p className="text-slate-500 mb-2 font-medium italic">Páginas impressas (Acumulado)</p>
+              <div className="text-5xl font-black text-blue-700 bg-blue-50 w-full py-10 rounded-2xl border border-blue-100 flex justify-center items-center shadow-inner">
+                {contador?.qtd_contador?.toLocaleString('pt-BR') || '0'}
+              </div>
             </div>
           </div>
 
