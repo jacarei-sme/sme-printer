@@ -22,7 +22,7 @@ O sistema foi estruturado em uma arquitetura de três camadas (Backend, Banco de
 A infraestrutura tecnológica do projeto baseia-se nas seguintes ferramentas e serviços:
 
 * **Linguagem:** Python 3.12 (scripts de automação e integração via API).
-* **Monitoramento e Protocolos:** Zabbix 6.0 e SNMP (Simple Network Management Protocol)[cite: 17, 46, 72]. [cite_start]O utilitário `snmpwalk` foi utilizado para mapear os OIDs de capacidade máxima e nível restante de toner.
+* **Monitoramento e Protocolos:** Zabbix 6.0 e SNMP (Simple Network Management Protocol). O utilitário `snmpwalk` foi utilizado para mapear os OIDs de capacidade máxima e nível restante de toner.
 * **Banco de Dados:** PostgreSQL hospedado na plataforma Supabase.
 * **Sistema Operacional:** Linux Mint 22.2, utilizando o agendador de tarefas `crontab` para execuções diárias.
 * **Frontend:** Next.js (React).
