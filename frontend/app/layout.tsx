@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "../css/app.css";
+import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,15 +12,22 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
-  title: 'Monitoramento de Impressoras - SME Jacareí',
-  description: 'DDashboard para monitoramento de impressoras da Secretaria Municipal de Educação de Jacareí.',
+export const metadata: Metadata = {
+  title: "DASHBOARDS - Monitoramento de Impressoras",
+  description: "Dashboard de monitoramento de impressoras para a Secretaria Municipal de Educação (SME). Acompanhe o status do toner e contador das impressoras em tempo real, garantindo eficiência e agilidade na manutenção dos equipamentos.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang="pt-BR">
-      <body>{children}</body>
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }
