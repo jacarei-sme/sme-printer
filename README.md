@@ -1,4 +1,4 @@
-# sme-printer
+# SME-PRINTER
 Repositório para controle de versão do Projeto Integrador III da Univesp do primeiro semestre de 2026, Grupo 09
 
 ## O que é?
