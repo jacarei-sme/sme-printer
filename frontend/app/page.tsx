@@ -23,30 +23,41 @@ export default async function Dashboard() {
     return <div className="p-10 text-red-500">Erro ao carregar dados: {error.message}</div>;
   }
 
-  // --- PROCESSAMENTO DE DADOS PARA O DASHBOARD ---
-  
+  // --- PROCESSAMENTO E FILTRAGEM DOS DADOS ---
   const impressorasProcessadas = impressoras.map(imp => {
+    // 1. Pegar apenas o contador mais recente
     const ultimoContador = imp.tabelaContador?.length > 0 
       ? Math.max(...imp.tabelaContador.map((c: any) => c.qtd_contador)) 
       : 0;
     
-    return { ...imp, ultimoContador };
+    // 2. Pegar apenas a ÚLTIMA leitura de toner (evita repetir o histórico no card)
+    // Agrupamos por cor para garantir que, se for colorida, pega o mais recente de cada cor.
+    const tonersPorCor: Record<string, any> = {};
+    (imp.tabelaToner || []).forEach((t: any) => {
+      const cor = t.cor_toner || 'Preto';
+      // Guarda apenas se for o primeiro que achou ou se o ID for maior (mais recente)
+      if (!tonersPorCor[cor] || t.id > tonersPorCor[cor].id) {
+        tonersPorCor[cor] = t;
+      }
+    });
+    const tonersRecentes = Object.values(tonersPorCor);
+
+    return { ...imp, ultimoContador, tonersRecentes };
   });
 
-  // 1. Ranking de Uso (Top 5)
+  // Ranking de Uso (Top 5)
   const rankingUso = [...impressorasProcessadas]
     .sort((a, b) => b.ultimoContador - a.ultimoContador)
     .slice(0, 5);
 
-  // 2. Alertas de Toner (Excluindo "Gráfica" e Toner > 15%)
+  // Alertas de Toner (Apenas para o valor MAIS RECENTE de impressoras que não são da Gráfica)
   const alertasToner = impressorasProcessadas.flatMap(imp => {
-    // Regra: Ignorar se for da Gráfica
     const eDaGrafica = imp.nome_maquina?.toLowerCase().includes('gráfica') || 
                        imp.modelo_impressora?.toLowerCase().includes('gráfica');
     
     if (eDaGrafica) return [];
 
-    return (imp.tabelaToner || [])
+    return imp.tonersRecentes
       .filter((t: any) => t.qtd_toner <= 15)
       .map((t: any) => ({
         unidade: imp.nome_maquina,
@@ -72,18 +83,18 @@ export default async function Dashboard() {
           </div>
         </div>
 
-        {/* --- NOVO DASHBOARD SUPERIOR --- */}
+        {/* --- DASHBOARD SUPERIOR --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
           
-          {/* Coluna: Ranking de Unidades */}
-          <div className="lg:col-span-1 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+          {/* Ranking de Unidades */}
+          <div className="lg:col-span-1 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col">
             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
               <span className="w-2 h-4 bg-blue-600 rounded-full"></span>
               Mais Utilizadas (Top 5)
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1">
               {rankingUso.map((imp, index) => (
-                <div key={imp.id} className="flex items-center justify-between">
+                <div key={imp.id} className="flex items-center justify-between border-b border-slate-50 pb-2 last:border-0">
                   <div className="flex items-center gap-3">
                     <span className="text-lg font-black text-slate-300">#{index + 1}</span>
                     <span className="font-bold text-slate-700 truncate max-w-[150px]">{imp.nome_maquina}</span>
@@ -96,23 +107,23 @@ export default async function Dashboard() {
             </div>
           </div>
 
-          {/* Coluna: Painel de Alertas Crimíticos */}
+          {/* Painel de Alertas Críticos */}
           <div className="lg:col-span-2 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
               <span className="w-2 h-4 bg-rose-500 rounded-full"></span>
               Alertas de Suprimento (Crítico)
             </h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[220px] overflow-y-auto pr-2">
               {alertasToner.length > 0 ? (
                 alertasToner.map((alerta, i) => (
-                  <div key={i} className="flex items-center gap-4 bg-rose-50 p-4 rounded-2xl border border-rose-100">
-                    <div className="bg-rose-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-black text-xs animate-pulse">
+                  <div key={i} className="flex items-center gap-4 bg-rose-50 p-4 rounded-2xl border border-rose-100 h-fit">
+                    <div className="bg-rose-500 text-white w-12 h-12 flex-shrink-0 rounded-full flex items-center justify-center font-black text-sm shadow-md animate-pulse">
                       {alerta.nivel}%
                     </div>
                     <div>
                       <p className="text-sm font-black text-rose-900 leading-tight">{alerta.unidade}</p>
-                      <p className="text-[10px] font-bold text-rose-600 uppercase">Toner {alerta.cor || 'Padrão'} muito baixo</p>
+                      <p className="text-xs font-bold text-rose-600 uppercase mt-1">Toner {alerta.cor || 'Padrão'} baixo</p>
                     </div>
                   </div>
                 ))
@@ -137,34 +148,40 @@ export default async function Dashboard() {
                     <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors">{imp.nome_maquina}</h3>
                     <p className="text-sm text-slate-400 font-medium">{imp.modelo_impressora}</p>
                   </div>
-                  <div className="bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+                  <div className="bg-slate-50 px-3 py-1 rounded-lg border border-slate-100 text-right">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">IP</p>
                     <p className="text-xs font-mono font-bold text-slate-600">{imp.endereco_ip}</p>
                   </div>
                 </div>
 
-                {/* Status do Toner */}
+                {/* Status do Toner (Apenas o mais recente) */}
                 <div className="space-y-4 mb-8">
-                  {imp.tabelaToner?.map((t: any) => (
-                    <div key={t.id}>
-                      <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter mb-1 text-slate-500">
-                        <span>Toner {t.cor_toner}</span>
-                        <span>{t.qtd_toner}%</span>
+                  {imp.tonersRecentes.length > 0 ? (
+                    imp.tonersRecentes.map((t: any) => (
+                      <div key={t.id}>
+                        <div className="flex justify-between text-xs font-black uppercase tracking-tighter mb-2 text-slate-500">
+                          <span>Toner {t.cor_toner || 'Padrão'}</span>
+                          <span className={t.qtd_toner <= 15 ? 'text-rose-600' : 'text-slate-700'}>{t.qtd_toner}%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
+                          <div 
+                            className={`h-full transition-all duration-500 ${
+                              t.qtd_toner >= 50 ? 'bg-emerald-500' : t.qtd_toner >= 15 ? 'bg-amber-400' : 'bg-rose-500'
+                            }`}
+                            style={{ width: `${t.qtd_toner}%` }}
+                          ></div>
+                        </div>
                       </div>
-                      <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
-                        <div 
-                          className={`h-full transition-all duration-500 ${t.qtd_toner <= 15 ? 'bg-rose-500' : 'bg-blue-500'}`}
-                          style={{ width: `${t.qtd_toner}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">Sem dados de toner no momento.</p>
+                  )}
                 </div>
 
-                {/* NOVO: Contador em destaque no Card */}
+                {/* Contador em destaque no Card */}
                 <div className="mt-auto pt-6 border-t border-slate-50 flex justify-between items-center">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contador Atual</span>
-                  <span className="text-xl font-black text-slate-800 bg-slate-50 px-4 py-1 rounded-xl">
+                  <span className="text-xl font-black text-blue-700 bg-blue-50 px-4 py-1 rounded-xl">
                     {imp.ultimoContador.toLocaleString('pt-BR')}
                   </span>
                 </div>
