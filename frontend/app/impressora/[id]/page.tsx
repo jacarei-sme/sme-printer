@@ -10,69 +10,55 @@ export const revalidate = 60;
 export default async function DetalhesImpressora({ params }: { params: { id: string } }) {
   const { id } = params;
 
-  // Busca a impressora específica pelo ID
   const { data: impressora, error } = await supabase
     .from('tabelaImpressoras')
-    .select(`
-      *,
-      tabelaToner ( cor_toner, qtd_toner, id ),
-      tabelaContador ( qtd_contador, id )
-    `)
+    .select(`*, tabelaToner ( cor_toner, qtd_toner, id ), tabelaContador ( qtd_contador, id )`)
     .eq('id', id)
     .single();
 
   if (error || !impressora) {
     return (
-      <div className="min-h-screen p-8 bg-gray-50 flex flex-col items-center justify-center">
+      <div className="app-container flex flex-col items-center justify-center">
         <h1 className="text-2xl font-bold text-red-600 mb-4">Impressora não encontrada</h1>
-        <Link href="/" className="text-blue-500 hover:underline">&larr; Voltar para o início</Link>
+        <Link href="/" className="text-blue-500 hover:underline">&larr; Voltar</Link>
       </div>
     );
   }
 
   const toner = impressora.tabelaToner?.[0];
   const contador = impressora.tabelaContador?.[0];
+  const nivelToner = toner?.qtd_toner ?? 0;
+  const corToner = nivelToner >= 50 ? 'bg-green-500' : nivelToner >= 15 ? 'bg-yellow-400' : 'bg-red-500';
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8 font-sans">
-      <div className="max-w-4xl mx-auto">
+    <main className="app-container">
+      <div className="detail-wrapper">
         
-        {/* Botão de Voltar */}
-        <div className="mb-6">
-          <Link href="/" className="text-gray-500 hover:text-blue-600 flex items-center gap-2 font-medium transition-colors">
-            &larr; Voltar para o Dashboard
-          </Link>
-        </div>
+        <Link href="/" className="btn-back">
+          &larr; Voltar para o Dashboard
+        </Link>
 
-        {/* Cabeçalho da Impressora */}
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 mb-6">
-          <h1 className="text-3xl font-extrabold text-gray-900">{impressora.nome_maquina || impressora.modelo_impressora}</h1>
-          <p className="text-lg text-gray-500 mt-2">Modelo: {impressora.modelo_impressora}</p>
-          <div className="mt-4 inline-block bg-blue-50 text-blue-700 px-4 py-2 rounded-lg font-semibold border border-blue-100">
-            Endereço IP: {impressora.endereco_ip}
+        <div className="header-card">
+          <div>
+            <h1 className="header-title">{impressora.nome_maquina || impressora.modelo_impressora}</h1>
+            <p className="header-subtitle">Modelo: {impressora.modelo_impressora}</p>
+            <div className="ip-badge">Endereço IP: {impressora.endereco_ip}</div>
           </div>
         </div>
 
-        {/* Informações Detalhadas (Grade) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="detail-grid">
           
-          {/* Card do Toner */}
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+          <div className="detail-card">
             <h2 className="text-xl font-bold text-gray-800 mb-6">Status do Suprimento</h2>
-            
-            <div className="flex items-center justify-center mb-6">
+            <div className="flex justify-center mb-6">
               <div className="text-6xl font-black text-gray-900">
-                {toner?.qtd_toner ?? 0}<span className="text-3xl text-gray-400">%</span>
+                {nivelToner}<span className="text-3xl text-gray-400">%</span>
               </div>
             </div>
-
-            <div className="w-full bg-gray-200 rounded-full h-6">
+            <div className="toner-track-large">
               <div 
-                className={`h-6 rounded-full transition-all duration-1000 ${
-                  (toner?.qtd_toner ?? 0) >= 50 ? 'bg-green-500' : 
-                  (toner?.qtd_toner ?? 0) >= 15 ? 'bg-yellow-400' : 'bg-red-500'
-                }`}
-                style={{ width: `${toner?.qtd_toner ?? 0}%` }}
+                className={`toner-fill h-6 ${corToner}`}
+                style={{ width: `${nivelToner}%` }}
               ></div>
             </div>
             {toner?.cor_toner && (
@@ -82,17 +68,15 @@ export default async function DetalhesImpressora({ params }: { params: { id: str
             )}
           </div>
 
-          {/* Card do Contador */}
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center items-center text-center">
+          <div className="detail-card flex flex-col justify-center items-center">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Volume de Impressão</h2>
-            <p className="text-gray-500 mb-2 font-medium">Total de páginas impressas até o momento:</p>
-            <div className="text-5xl font-black text-blue-600 bg-blue-50 w-full py-8 rounded-xl border border-blue-100">
+            <p className="text-gray-500 mb-2 font-medium">Total de páginas impressas:</p>
+            <div className="counter-box">
               {contador?.qtd_contador?.toLocaleString('pt-BR') || '---'}
             </div>
           </div>
 
         </div>
-
       </div>
     </main>
   );
