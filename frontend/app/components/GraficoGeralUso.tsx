@@ -8,7 +8,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   Area,
-  AreaChart
+  ComposedChart,
+  Line
 } from 'recharts';
 
 export default function GraficoGeralUso({ impressoras }: { impressoras: any[] }) {
@@ -21,26 +22,23 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
     const mesesLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const totalPorMes: Record<number, number> = {};
 
-    // Inicializar os meses a zero
+    // 1. Inicializar os meses a zero
     mesesLabels.forEach((_, i) => totalPorMes[i] = 0);
 
+    // 2. Somar o uso de todas as impressoras mês a mês
     impressoras.forEach(imp => {
-      // Ordenar todo o histórico cronologicamente
       const todasLeituras = (imp.tabelaContador || []).sort(
         (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
 
-      const leiturasAnteriores = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() < anoAtual);
       const contadoresAno = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() === anoAtual);
+      const leiturasAnteriores = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() < anoAtual);
 
       if (contadoresAno.length > 0) {
-        // A base zero ideal é a última leitura do ano anterior. 
-        // Se não existir, usa-se a primeira leitura deste ano.
         const baseZero = leiturasAnteriores.length > 0 
           ? leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador 
           : contadoresAno[0].qtd_contador;
         
-        // Agrupar o maior valor atingido em cada mês para a impressora
         const maiorDoMes: Record<number, number> = {};
         contadoresAno.forEach((c: any) => {
           const mes = new Date(c.created_at).getMonth();
@@ -50,7 +48,6 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
           }
         });
 
-        // Adicionar ao bolo geral da SME (repetindo o último valor nos meses sem leitura)
         let ultimoUsoConhecido = 0;
         for (let i = 0; i <= mesAtual; i++) {
           if (maiorDoMes[i] !== undefined) {
@@ -61,22 +58,42 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
       }
     });
 
-    // Formatar para o gráfico do Recharts
-    return mesesLabels.map((mes, i) => ({
-      mes,
-      total: totalPorMes[i],
-      exibir: i <= mesAtual // Não exibe os meses do futuro no gráfico
-    })).filter(d => d.exibir);
+    // 3. CÁLCULO DE PREVISÃO (FORECAST)
+    const totalAteAgora = totalPorMes[mesAtual];
+    // Evita divisão por zero caso estejamos em Janeiro (mês 0) e não haja dados ainda
+    const mesesPassados = mesAtual + 1; 
+    const mediaMensalCrescimento = mesesPassados > 0 ? Math.round(totalAteAgora / mesesPassados) : 0;
+
+    // 4. Montar os dados para o Recharts (Separando Realizado e Previsão)
+    return mesesLabels.map((mes, index) => {
+      if (index <= mesAtual) {
+        // Meses passados e atual (Dados Reais)
+        return {
+          mes,
+          Realizado: totalPorMes[index],
+          // O mês atual serve de "ponte" para a linha de previsão não ficar desconectada
+          Previsao: index === mesAtual ? totalPorMes[index] : null 
+        };
+      } else {
+        // Meses futuros (Projeção Linear)
+        const diferencaMeses = index - mesAtual;
+        return {
+          mes,
+          Realizado: null,
+          Previsao: totalAteAgora + (mediaMensalCrescimento * diferencaMeses)
+        };
+      }
+    });
 
   }, [impressoras]);
 
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={dadosProcessados} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+        <ComposedChart data={dadosProcessados} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>
-            <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
+            <linearGradient id="colorRealizado" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
               <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
             </linearGradient>
           </defs>
@@ -88,23 +105,41 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
             tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
             dy={10}
           />
-          <YAxis hide />
+          <YAxis hide domain={['dataMin', 'dataMax + 1000']} />
+          
+          {/* Tooltip com tipagem relaxada para evitar o erro do Recharts + TS */}
           <Tooltip 
-            cursor={{ stroke: '#3b82f6', strokeWidth: 2 }}
-            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-            formatter={(value: any) => [`+${Number(value).toLocaleString('pt-BR')} páginas`, 'Uso Acumulado SME']}
-            labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
+            cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '5 5' }}
+            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px 16px' }}
+            formatter={(value: any, name: any) => [
+              `+${Number(value).toLocaleString('pt-BR')} páginas`, 
+              name === 'Realizado' ? 'Uso Real (Acumulado)' : 'Previsão Estimada'
+            ]}
+            labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '8px' }}
           />
+
+          {/* Área do uso Realizado */}
           <Area 
             type="monotone" 
-            dataKey="total" 
+            dataKey="Realizado" 
             stroke="#3b82f6" 
             strokeWidth={3} 
-            fill="url(#colorTotal)" 
+            fill="url(#colorRealizado)" 
             dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
             activeDot={{ r: 6, strokeWidth: 0 }}
           />
-        </AreaChart>
+
+          {/* Linha da Previsão Futura (Pontilhada) */}
+          <Line 
+            type="monotone" 
+            dataKey="Previsao" 
+            stroke="#94a3b8" 
+            strokeWidth={2} 
+            strokeDasharray="5 5" 
+            dot={false}
+            activeDot={{ r: 5, fill: '#94a3b8', stroke: '#fff', strokeWidth: 2 }}
+          />
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
