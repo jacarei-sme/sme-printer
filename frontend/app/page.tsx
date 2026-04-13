@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
+import GraficoGeralUso from './components/GraficoGeralUso';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
@@ -8,7 +9,6 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export const revalidate = 60;
 
 export default async function Dashboard() {
-  // Buscamos os dados incluindo a data de criação para o cálculo do ano
   const { data: impressoras, error } = await supabase
     .from('tabelaImpressoras')
     .select(`
@@ -21,7 +21,7 @@ export default async function Dashboard() {
     `);
 
   if (error) {
-    return <div className="p-10 text-red-500">Erro ao carregar dados: {error.message}</div>;
+    return <div className="p-10 text-rose-600 font-bold bg-rose-50 text-center">Erro ao carregar dados: {error.message}</div>;
   }
 
   const anoAtual = new Date().getFullYear();
@@ -29,21 +29,27 @@ export default async function Dashboard() {
   // --- PROCESSAMENTO INTELIGENTE DE DADOS ---
   const impressorasProcessadas = impressoras.map(imp => {
     
-    // 1. CÁLCULO DE USO NO ANO (O SEU NOVO RANKING)
-    const contadoresAno = (imp.tabelaContador || [])
-      .filter((c: any) => new Date(c.created_at).getFullYear() === anoAtual)
-      .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-    const ultimoContador = contadoresAno.length > 0 
-      ? contadoresAno[contadoresAno.length - 1].qtd_contador 
-      : 0;
+    // 1. CÁLCULO DE CONTADORES CORRIGIDO
+    const todasLeituras = (imp.tabelaContador || []).sort(
+      (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
     
-    const valorInicialAno = contadoresAno.length > 0
-      ? contadoresAno[0].qtd_contador
-      : ultimoContador;
+    // O Total Geral DEVE puxar de todo o histórico, não importa o ano
+    const ultimoContadorGlobal = todasLeituras.length > 0 
+      ? todasLeituras[todasLeituras.length - 1].qtd_contador 
+      : 0;
 
-    // Este é o valor que define quem "trabalha mais"
-    const usoNoAno = ultimoContador - valorInicialAno;
+    // Leituras apenas deste ano
+    const contadoresAno = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() === anoAtual);
+    const leiturasAnteriores = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() < anoAtual);
+
+    const baseZero = leiturasAnteriores.length > 0 
+      ? leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador 
+      : (contadoresAno.length > 0 ? contadoresAno[0].qtd_contador : 0);
+
+    const usoNoAno = contadoresAno.length > 0 
+      ? contadoresAno[contadoresAno.length - 1].qtd_contador - baseZero 
+      : 0;
     
     // 2. FILTRAR TONER (Apenas o mais recente de cada cor)
     const tonersPorCor: Record<string, any> = {};
@@ -55,15 +61,15 @@ export default async function Dashboard() {
     });
     const tonersRecentes = Object.values(tonersPorCor);
 
-    return { ...imp, ultimoContador, usoNoAno, tonersRecentes };
+    return { ...imp, ultimoContadorGlobal, usoNoAno, tonersRecentes };
   });
 
-  // Ranking baseado no Uso Real (Uso no Ano)
+  // Ranking baseado no Uso Real
   const rankingUso = [...impressorasProcessadas]
     .sort((a, b) => b.usoNoAno - a.usoNoAno)
     .slice(0, 5);
 
-  // Alertas de Toner (Apenas recentes e ignorando Gráfica)
+  // Alertas de Toner
   const alertasToner = impressorasProcessadas.flatMap(imp => {
     const nomeBaixo = imp.nome_maquina?.toLowerCase() || "";
     const modeloBaixo = imp.modelo_impressora?.toLowerCase() || "";
@@ -79,39 +85,86 @@ export default async function Dashboard() {
       }));
   });
 
+  // Total Acumulado Geral da SME
+  const totalVolumeSME = impressorasProcessadas.reduce((acc, imp) => acc + imp.usoNoAno, 0);
+
   return (
-    <main className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans">
+    <main className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans text-slate-900">
       <div className="max-w-7xl mx-auto">
         
         {/* Cabeçalho */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
           <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Monitoramento SME</h1>
-            <p className="text-slate-500 font-medium">Gestão centralizada e análise de demanda</p>
+            <h1 className="text-3xl font-black tracking-tight">Monitoramento SME</h1>
+            <p className="text-slate-500 font-medium mt-1">Análise de desempenho e suprimentos</p>
           </div>
         </div>
 
-        {/* DASHBOARD SUPERIOR: Ranking e Alertas */}
+        {/* Dashboard Superior */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          
+          {/* Unidades Mais Ativas */}
           <div className="lg:col-span-1 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
-             {/* ... conteúdo do RankingUso ... */}
+            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+              <span className="w-2 h-4 bg-blue-600 rounded-full"></span>
+              Mais Utilizadas ({anoAtual})
+            </h2>
+            <div className="space-y-4">
+              {rankingUso.map((imp, index) => (
+                <div key={imp.id} className="flex items-center justify-between border-b border-slate-50 pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg font-black text-slate-200">#{index + 1}</span>
+                    <span className="font-bold text-slate-700 truncate max-w-[150px]">{imp.nome_maquina}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-black text-blue-600">+{imp.usoNoAno.toLocaleString('pt-BR')}</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">páginas</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+
+          {/* Alertas Críticos */}
           <div className="lg:col-span-2 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
-             {/* ... conteúdo dos AlertasToner ... */}
+            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+              <span className="w-2 h-4 bg-rose-500 rounded-full"></span>
+              Alertas de Suprimento
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[240px] overflow-y-auto pr-2">
+              {alertasToner.length > 0 ? (
+                alertasToner.map((alerta, i) => (
+                  <div key={i} className="flex items-center gap-4 bg-rose-50 p-4 rounded-2xl border border-rose-100">
+                    <div className="bg-rose-500 text-white w-12 h-12 flex-shrink-0 rounded-full flex items-center justify-center font-black text-sm animate-pulse shadow-md">
+                      {alerta.nivel}%
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-rose-900 leading-tight">{alerta.unidade}</p>
+                      <p className="text-[10px] font-bold text-rose-600 uppercase mt-1">Toner {alerta.cor || 'Padrão'} Crítico</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-1 md:col-span-2 flex flex-col items-center justify-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <span className="text-2xl mb-2">✅</span>
+                  <p className="text-slate-400 font-medium text-sm">Todos os níveis de suprimento normais.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* --- NOVO: GRÁFICO DE USO GERAL DA REDE --- */}
+        {/* --- GRÁFICO GERAL --- */}
         <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 mb-12">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-2">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <div>
               <h2 className="text-xl font-black text-slate-800">Volume de Impressão Global</h2>
-              <p className="text-sm text-slate-400 font-medium">Uso acumulado de todas as unidades da SME neste ano</p>
+              <p className="text-sm text-slate-400 font-medium mt-1">Uso acumulado de todas as unidades da SME em {anoAtual}</p>
             </div>
-            <div className="bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
-              <span className="text-[10px] font-black text-blue-400 uppercase block leading-none mb-1">Total Acumulado</span>
-              <span className="text-xl font-black text-blue-700">
-                {impressorasProcessadas.reduce((acc, imp) => acc + imp.usoNoAno, 0).toLocaleString('pt-BR')}
+            <div className="bg-blue-50 px-5 py-3 rounded-2xl border border-blue-100 shadow-inner">
+              <span className="text-[10px] font-black text-blue-500 uppercase block leading-none mb-1">Total Acumulado ({anoAtual})</span>
+              <span className="text-2xl font-black text-blue-700">
+                {totalVolumeSME.toLocaleString('pt-BR')} <span className="text-sm font-bold text-blue-400">págs</span>
               </span>
             </div>
           </div>
@@ -119,10 +172,61 @@ export default async function Dashboard() {
           <GraficoGeralUso impressoras={impressorasProcessadas} />
         </div>
 
-        {/* GRID DE IMPRESSORAS (Lista Completa) */}
-        <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 ml-2">Todos os Equipamentos</h2>
+        {/* Lista Completa */}
+        <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 ml-2">Lista de Equipamentos</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-          {/* ... mapeamento dos cards das impressoras ... */}
+          {impressorasProcessadas.map((imp) => (
+            <Link href={`/impressora/${imp.id}`} key={imp.id}>
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all duration-300 group flex flex-col h-full">
+                
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors">{imp.nome_maquina}</h3>
+                    <p className="text-sm text-slate-400 font-medium">{imp.modelo_impressora}</p>
+                  </div>
+                </div>
+
+                {/* Status dos Toners (Com fallback para impressoras sem dados) */}
+                <div className="space-y-4 mb-8">
+                  {imp.tonersRecentes.length > 0 ? (
+                    imp.tonersRecentes.map((t: any) => (
+                      <div key={t.id}>
+                        <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter mb-2 text-slate-500">
+                          <span>Toner {t.cor_toner || 'Padrão'}</span>
+                          <span className={t.qtd_toner <= 15 ? 'text-rose-600' : 'text-slate-700'}>{t.qtd_toner}%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner">
+                          <div 
+                            className={`h-full transition-all duration-700 ease-out ${
+                              t.qtd_toner >= 50 ? 'bg-emerald-500' : t.qtd_toner >= 15 ? 'bg-amber-400' : 'bg-rose-500'
+                            }`}
+                            style={{ width: `${t.qtd_toner}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 text-center">
+                      <p className="text-xs text-amber-600 font-bold">Sem dados de suprimento.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info de Uso no Rodapé */}
+                <div className="mt-auto pt-6 border-t border-slate-50 flex justify-between items-end">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Uso no Ano</p>
+                    <p className="text-xl font-black text-blue-600">+{imp.usoNoAno.toLocaleString('pt-BR')}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Odometer</p>
+                    <p className="text-sm font-bold text-slate-700">{imp.ultimoContadorGlobal.toLocaleString('pt-BR')}</p>
+                  </div>
+                </div>
+
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </main>
