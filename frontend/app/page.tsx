@@ -26,64 +26,35 @@ export default async function Dashboard() {
 
   const anoAtual = new Date().getFullYear();
 
-  // --- PROCESSAMENTO INTELIGENTE DE DADOS ---
-  const impressorasProcessadas = impressoras.map(imp => {
+const impressorasProcessadas = impressoras.map(imp => {
     
-    // 1. CÁLCULO DE CONTADORES CORRIGIDO
+    // 1. CÁLCULO DE CONTADORES (Com proteção anti-reset)
     const todasLeituras = (imp.tabelaContador || []).sort(
       (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
     
-    // O Total Geral DEVE puxar de todo o histórico, não importa o ano
     const ultimoContadorGlobal = todasLeituras.length > 0 
       ? todasLeituras[todasLeituras.length - 1].qtd_contador 
       : 0;
 
-    // Leituras apenas deste ano
     const contadoresAno = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() === anoAtual);
     const leiturasAnteriores = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() < anoAtual);
 
-    const baseZero = leiturasAnteriores.length > 0 
+    let valorAnterior = leiturasAnteriores.length > 0 
       ? leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador 
       : (contadoresAno.length > 0 ? contadoresAno[0].qtd_contador : 0);
 
-    const usoNoAno = contadoresAno.length > 0 
-      ? contadoresAno[contadoresAno.length - 1].qtd_contador - baseZero 
-      : 0;
-    
-    // 2. FILTRAR TONER (Apenas o mais recente de cada cor)
-    const tonersPorCor: Record<string, any> = {};
-    (imp.tabelaToner || []).forEach((t: any) => {
-      const cor = t.cor_toner || 'Preto';
-      if (!tonersPorCor[cor] || t.id > tonersPorCor[cor].id) {
-        tonersPorCor[cor] = t;
+    let usoNoAno = 0;
+
+    contadoresAno.forEach((c: any) => {
+      if (c.qtd_contador >= valorAnterior) {
+        usoNoAno += (c.qtd_contador - valorAnterior);
+      } else {
+        // Se a contagem diminuiu, a máquina foi trocada/resetada. Soma apenas o valor novo.
+        usoNoAno += c.qtd_contador;
       }
+      valorAnterior = c.qtd_contador;
     });
-    const tonersRecentes = Object.values(tonersPorCor);
-
-    return { ...imp, ultimoContadorGlobal, usoNoAno, tonersRecentes };
-  });
-
-  // Ranking baseado no Uso Real
-  const rankingUso = [...impressorasProcessadas]
-    .sort((a, b) => b.usoNoAno - a.usoNoAno)
-    .slice(0, 5);
-
-  // Alertas de Toner
-  const alertasToner = impressorasProcessadas.flatMap(imp => {
-    const nomeBaixo = imp.nome_maquina?.toLowerCase() || "";
-    const modeloBaixo = imp.modelo_impressora?.toLowerCase() || "";
-    
-    if (nomeBaixo.includes('gráfica') || modeloBaixo.includes('gráfica')) return [];
-
-    return imp.tonersRecentes
-      .filter((t: any) => t.qtd_toner <= 15)
-      .map((t: any) => ({
-        unidade: imp.nome_maquina,
-        nivel: t.qtd_toner,
-        cor: t.cor_toner
-      }));
-  });
 
   // Total Acumulado Geral da SME
   const totalVolumeSME = impressorasProcessadas.reduce((acc, imp) => acc + imp.usoNoAno, 0);

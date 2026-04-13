@@ -25,7 +25,7 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
     // 1. Inicializar os meses a zero
     mesesLabels.forEach((_, i) => totalPorMes[i] = 0);
 
-    // 2. Somar o uso de todas as impressoras mês a mês
+    // 2. Somar o uso de todas as impressoras (Com proteção contra Reset de Contador)
     impressoras.forEach(imp => {
       const todasLeituras = (imp.tabelaContador || []).sort(
         (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -35,47 +35,55 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
       const leiturasAnteriores = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() < anoAtual);
 
       if (contadoresAno.length > 0) {
-        const baseZero = leiturasAnteriores.length > 0 
+        let valorAnterior = leiturasAnteriores.length > 0 
           ? leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador 
           : contadoresAno[0].qtd_contador;
         
-        const maiorDoMes: Record<number, number> = {};
+        let usoAcumulado = 0;
+        const usoMesAMes: Record<number, number> = {};
+
         contadoresAno.forEach((c: any) => {
           const mes = new Date(c.created_at).getMonth();
-          const usoAteEntao = c.qtd_contador - baseZero;
-          if (maiorDoMes[mes] === undefined || usoAteEntao > maiorDoMes[mes]) {
-            maiorDoMes[mes] = usoAteEntao;
+          
+          // Lógica anti-negativo: Se o contador caiu, foi resetado/trocado.
+          if (c.qtd_contador >= valorAnterior) {
+            usoAcumulado += (c.qtd_contador - valorAnterior);
+          } else {
+            usoAcumulado += c.qtd_contador; 
+          }
+          valorAnterior = c.qtd_contador; // Atualiza para a próxima volta
+
+          // Guarda sempre o maior valor acumulado alcançado no mês
+          if (usoMesAMes[mes] === undefined || usoAcumulado > usoMesAMes[mes]) {
+            usoMesAMes[mes] = usoAcumulado;
           }
         });
 
+        // Adiciona ao bolo da SME
         let ultimoUsoConhecido = 0;
         for (let i = 0; i <= mesAtual; i++) {
-          if (maiorDoMes[i] !== undefined) {
-            ultimoUsoConhecido = maiorDoMes[i];
+          if (usoMesAMes[i] !== undefined) {
+            ultimoUsoConhecido = usoMesAMes[i];
           }
           totalPorMes[i] += ultimoUsoConhecido;
         }
       }
     });
 
-    // 3. CÁLCULO DE PREVISÃO (FORECAST)
-    const totalAteAgora = totalPorMes[mesAtual];
-    // Evita divisão por zero caso estejamos em Janeiro (mês 0) e não haja dados ainda
+    // 3. CÁLCULO DE PREVISÃO CORRIGIDO
+    const totalAteAgora = totalPorMes[mesAtual] || 0;
     const mesesPassados = mesAtual + 1; 
     const mediaMensalCrescimento = mesesPassados > 0 ? Math.round(totalAteAgora / mesesPassados) : 0;
 
-    // 4. Montar os dados para o Recharts (Separando Realizado e Previsão)
+    // 4. Montar os dados para o Recharts
     return mesesLabels.map((mes, index) => {
       if (index <= mesAtual) {
-        // Meses passados e atual (Dados Reais)
         return {
           mes,
           Realizado: totalPorMes[index],
-          // O mês atual serve de "ponte" para a linha de previsão não ficar desconectada
           Previsao: index === mesAtual ? totalPorMes[index] : null 
         };
       } else {
-        // Meses futuros (Projeção Linear)
         const diferencaMeses = index - mesAtual;
         return {
           mes,
@@ -107,7 +115,6 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
           />
           <YAxis hide domain={['dataMin', 'dataMax + 1000']} />
           
-          {/* Tooltip com tipagem relaxada para evitar o erro do Recharts + TS */}
           <Tooltip 
             cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '5 5' }}
             contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px 16px' }}
@@ -118,7 +125,6 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
             labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '8px' }}
           />
 
-          {/* Área do uso Realizado */}
           <Area 
             type="monotone" 
             dataKey="Realizado" 
@@ -129,7 +135,6 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
             activeDot={{ r: 6, strokeWidth: 0 }}
           />
 
-          {/* Linha da Previsão Futura (Pontilhada) */}
           <Line 
             type="monotone" 
             dataKey="Previsao" 
