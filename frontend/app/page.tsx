@@ -26,7 +26,8 @@ export default async function Dashboard() {
 
   const anoAtual = new Date().getFullYear();
 
-const impressorasProcessadas = impressoras.map(imp => {
+  // --- PROCESSAMENTO INTELIGENTE DE DADOS ---
+  const impressorasProcessadas = impressoras.map(imp => {
     
     // 1. CÁLCULO DE CONTADORES (Com proteção anti-reset)
     const todasLeituras = (imp.tabelaContador || []).sort(
@@ -55,6 +56,42 @@ const impressorasProcessadas = impressoras.map(imp => {
       }
       valorAnterior = c.qtd_contador;
     });
+
+    // 2. FILTRAR TONER (Apenas o mais recente de cada cor)
+    const tonersPorCor: Record<string, any> = {};
+    (imp.tabelaToner || []).forEach((t: any) => {
+      const cor = t.cor_toner || 'Preto';
+      if (!tonersPorCor[cor] || t.id > tonersPorCor[cor].id) {
+        tonersPorCor[cor] = t;
+      }
+    });
+    const tonersRecentes = Object.values(tonersPorCor);
+
+    // ERRO CORRIGIDO 1: Agora o map retorna os dados agrupados corretamente
+    return { ...imp, ultimoContadorGlobal, usoNoAno, tonersRecentes };
+  });
+
+  // ERRO CORRIGIDO 2: Recriando as variáveis do Ranking e Alertas
+  // Ranking baseado no Uso Real
+  const rankingUso = [...impressorasProcessadas]
+    .sort((a, b) => b.usoNoAno - a.usoNoAno)
+    .slice(0, 5);
+
+  // Alertas de Toner
+  const alertasToner = impressorasProcessadas.flatMap(imp => {
+    const nomeBaixo = imp.nome_maquina?.toLowerCase() || "";
+    const modeloBaixo = imp.modelo_impressora?.toLowerCase() || "";
+    
+    if (nomeBaixo.includes('gráfica') || modeloBaixo.includes('gráfica')) return [];
+
+    return imp.tonersRecentes
+      .filter((t: any) => t.qtd_toner <= 15)
+      .map((t: any) => ({
+        unidade: imp.nome_maquina,
+        nivel: t.qtd_toner,
+        cor: t.cor_toner
+      }));
+  });
 
   // Total Acumulado Geral da SME
   const totalVolumeSME = impressorasProcessadas.reduce((acc, imp) => acc + imp.usoNoAno, 0);
@@ -157,7 +194,7 @@ const impressorasProcessadas = impressoras.map(imp => {
                   </div>
                 </div>
 
-                {/* Status dos Toners (Com fallback para impressoras sem dados) */}
+                {/* Status dos Toners */}
                 <div className="space-y-4 mb-8">
                   {imp.tonersRecentes.length > 0 ? (
                     imp.tonersRecentes.map((t: any) => (
