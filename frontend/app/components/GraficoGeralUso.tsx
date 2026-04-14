@@ -25,9 +25,9 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
     // 1. Inicializar os meses a zero
     mesesLabels.forEach((_, i) => totalPorMes[i] = 0);
 
-    // 2. Somar o uso de todas as impressoras (Com proteção contra Reset de Contador)
+    // 2. Somar o uso de todas as impressoras (Com proteção contra Reset de Contador e conversão para Number)
     impressoras.forEach(imp => {
-      const todasLeituras = (imp.tabelaContador || []).sort(
+      const todasLeituras = [...(imp.tabelaContador || [])].sort(
         (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
 
@@ -35,23 +35,25 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
       const leiturasAnteriores = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() < anoAtual);
 
       if (contadoresAno.length > 0) {
+        // Garantir que a base é um Número
         let valorAnterior = leiturasAnteriores.length > 0 
-          ? leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador 
-          : contadoresAno[0].qtd_contador;
+          ? Number(leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador) 
+          : Number(contadoresAno[0].qtd_contador);
         
         let usoAcumulado = 0;
         const usoMesAMes: Record<number, number> = {};
 
         contadoresAno.forEach((c: any) => {
           const mes = new Date(c.created_at).getMonth();
+          const contadorAtual = Number(c.qtd_contador);
           
-          // Lógica anti-negativo: Se o contador caiu, foi resetado/trocado.
-          if (c.qtd_contador >= valorAnterior) {
-            usoAcumulado += (c.qtd_contador - valorAnterior);
+          // Lógica anti-negativo estrita com Number: Se o contador caiu, foi resetado/trocado.
+          if (contadorAtual >= valorAnterior) {
+            usoAcumulado += (contadorAtual - valorAnterior);
           } else {
-            usoAcumulado += c.qtd_contador; 
+            usoAcumulado += contadorAtual; 
           }
-          valorAnterior = c.qtd_contador; // Atualiza para a próxima volta
+          valorAnterior = contadorAtual; // Atualiza para a próxima volta
 
           // Guarda sempre o maior valor acumulado alcançado no mês
           if (usoMesAMes[mes] === undefined || usoAcumulado > usoMesAMes[mes]) {

@@ -19,33 +19,51 @@ export default function GraficoContador({ dadosHistoricos }: { dadosHistoricos: 
       return { dadosProcessados: [], valorReferencia: 0, mediaMensal: 0, projecaoAnual: 0 };
     }
 
-    const anoAtual = new Date().getFullYear();
+    const dataAtual = new Date();
+    const anoAtual = dataAtual.getFullYear();
     const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     
-    // 1. Filtrar dados do ano atual e ordenar
-    const dadosAno = dadosHistoricos
-      .filter(item => new Date(item.created_at).getFullYear() === anoAtual)
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    // 1. Filtrar dados e ordenar cronologicamente
+    const todasLeituras = [...dadosHistoricos].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    const dadosAno = todasLeituras.filter(item => new Date(item.created_at).getFullYear() === anoAtual);
+    const leiturasAnteriores = todasLeituras.filter(item => new Date(item.created_at).getFullYear() < anoAtual);
 
     if (dadosAno.length === 0) {
       return { dadosProcessados: [], valorReferencia: 0, mediaMensal: 0, projecaoAnual: 0 };
     }
 
-    // 2. Definir o valor base (zero do gráfico)
-    const valorBase = dadosAno[0].qtd_contador;
+    // 2. Definir o valor base de forma segura (com Number)
+    let valorAnterior = leiturasAnteriores.length > 0 
+      ? Number(leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador) 
+      : Number(dadosAno[0].qtd_contador);
     
-    // 3. Agrupar o maior valor atingido em cada mês
+    const valorReferenciaDisplay = valorAnterior; // Para mostrar na interface gráfica
+    
+    // 3. Agrupar o uso acumulado (Protegido contra Reset/Troca de Impressora)
+    let usoAcumulado = 0;
     const agrupado: Record<number, number> = {};
+
     dadosAno.forEach((item) => {
       const mesIndex = new Date(item.created_at).getMonth();
-      const paginasAcumuladas = item.qtd_contador - valorBase;
+      const contadorAtual = Number(item.qtd_contador);
       
-      if (agrupado[mesIndex] === undefined || agrupado[mesIndex] < paginasAcumuladas) {
-        agrupado[mesIndex] = paginasAcumuladas;
+      // Lógica Anti-Reset
+      if (contadorAtual >= valorAnterior) {
+        usoAcumulado += (contadorAtual - valorAnterior);
+      } else {
+        usoAcumulado += contadorAtual; // A impressora foi trocada, recomeça do novo valor
+      }
+      valorAnterior = contadorAtual;
+
+      if (agrupado[mesIndex] === undefined || usoAcumulado > agrupado[mesIndex]) {
+        agrupado[mesIndex] = usoAcumulado;
       }
     });
 
-    // 4. Calcular a Média Mensal
+    // 4. Calcular a Média Mensal Real
     const mesesComDado = Object.keys(agrupado).map(Number).sort((a, b) => a - b);
     const mesInicial = mesesComDado[0];
     const mesAtual = mesesComDado[mesesComDado.length - 1];
@@ -60,8 +78,6 @@ export default function GraficoContador({ dadosHistoricos }: { dadosHistoricos: 
 
       // Se temos dado real para este mês
       if (index <= mesAtual && agrupado[index] !== undefined) {
-        // Preenche com o valor real
-        // Para os meses intermediários que não tiveram leitura, repete o último valor conhecido
         let valorReal = agrupado[index];
         if (valorReal === undefined) {
           let lastKnown = 0;
@@ -73,12 +89,11 @@ export default function GraficoContador({ dadosHistoricos }: { dadosHistoricos: 
         
         dataPoint.Realizado = valorReal;
         
-        // O ponto de intersecção: Onde o Realizado termina, a Previsão começa
         if (index === mesAtual) {
           dataPoint.Previsao = valorReal;
         }
       } 
-      // Meses futuros (Projeção)
+      // Meses futuros (Projeção Linear)
       else if (index > mesAtual) {
         const mesesFuturos = index - mesAtual;
         dataPoint.Previsao = paginasTotaisAteAgora + (media * mesesFuturos);
@@ -91,7 +106,7 @@ export default function GraficoContador({ dadosHistoricos }: { dadosHistoricos: 
 
     return {
       dadosProcessados: chartData,
-      valorReferencia: valorBase,
+      valorReferencia: valorReferenciaDisplay,
       mediaMensal: media,
       projecaoAnual: previsaoFinal
     };
@@ -111,7 +126,7 @@ export default function GraficoContador({ dadosHistoricos }: { dadosHistoricos: 
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
           <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Base do Gráfico</p>
-          <p className="text-lg font-black text-slate-700">{valorReferencia.toLocaleString('pt-BR')} <span className="text-xs font-normal text-slate-500">págs (Jan)</span></p>
+          <p className="text-lg font-black text-slate-700">{valorReferencia.toLocaleString('pt-BR')} <span className="text-xs font-normal text-slate-500">págs</span></p>
         </div>
         
         <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
@@ -158,11 +173,10 @@ export default function GraficoContador({ dadosHistoricos }: { dadosHistoricos: 
               contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px 16px' }}
               formatter={(value: any, name: any) => [
                 `+${Number(value).toLocaleString('pt-BR')} páginas`, 
-                name === 'Realizado' ? 'Uso Real' : 'Previsão Estimada'
+                name === 'Realizado' ? 'Uso Real (Acumulado)' : 'Previsão Estimada'
               ]}
               labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '8px' }}
             />            
-            {/* Área de Uso Real */}
             <Area 
               type="monotone" 
               dataKey="Realizado" 
@@ -172,12 +186,10 @@ export default function GraficoContador({ dadosHistoricos }: { dadosHistoricos: 
               dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
               activeDot={{ r: 6, strokeWidth: 0 }}
             />
-            
-            {/* Linha Tracejada de Previsão */}
             <Line 
               type="monotone" 
               dataKey="Previsao" 
-              stroke="#10b981" /* Emerald (Verde) */
+              stroke="#10b981"
               strokeWidth={3} 
               strokeDasharray="6 6"
               dot={false}

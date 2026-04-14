@@ -29,49 +29,51 @@ export default async function Dashboard() {
   // --- PROCESSAMENTO INTELIGENTE DE DADOS ---
   const impressorasProcessadas = impressoras.map(imp => {
     
-    // 1. CÁLCULO DE CONTADORES (Com proteção anti-reset)
-    const todasLeituras = (imp.tabelaContador || []).sort(
+    // 1. CÁLCULO DE CONTADORES (Com conversão forçada para Number e clone de array)
+    const todasLeituras = [...(imp.tabelaContador || [])].sort(
       (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
     
     const ultimoContadorGlobal = todasLeituras.length > 0 
-      ? todasLeituras[todasLeituras.length - 1].qtd_contador 
+      ? Number(todasLeituras[todasLeituras.length - 1].qtd_contador) 
       : 0;
 
     const contadoresAno = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() === anoAtual);
     const leiturasAnteriores = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() < anoAtual);
 
     let valorAnterior = leiturasAnteriores.length > 0 
-      ? leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador 
-      : (contadoresAno.length > 0 ? contadoresAno[0].qtd_contador : 0);
+      ? Number(leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador) 
+      : (contadoresAno.length > 0 ? Number(contadoresAno[0].qtd_contador) : 0);
 
     let usoNoAno = 0;
 
     contadoresAno.forEach((c: any) => {
-      if (c.qtd_contador >= valorAnterior) {
-        usoNoAno += (c.qtd_contador - valorAnterior);
+      // CORREÇÃO CRÍTICA: Garante que os valores são tratados como matemática e não texto
+      const contadorAtual = Number(c.qtd_contador);
+
+      if (contadorAtual >= valorAnterior) {
+        usoNoAno += (contadorAtual - valorAnterior);
       } else {
-        // Se a contagem diminuiu, a máquina foi trocada/resetada. Soma apenas o valor novo.
-        usoNoAno += c.qtd_contador;
+        // Se a contagem diminuiu de forma real, a máquina foi resetada. Soma apenas o valor novo.
+        usoNoAno += contadorAtual;
       }
-      valorAnterior = c.qtd_contador;
+      valorAnterior = contadorAtual;
     });
 
     // 2. FILTRAR TONER (Apenas o mais recente de cada cor)
     const tonersPorCor: Record<string, any> = {};
     (imp.tabelaToner || []).forEach((t: any) => {
       const cor = t.cor_toner || 'Preto';
-      if (!tonersPorCor[cor] || t.id > tonersPorCor[cor].id) {
+      // Garante que o ID compara números corretamente
+      if (!tonersPorCor[cor] || Number(t.id) > Number(tonersPorCor[cor].id)) {
         tonersPorCor[cor] = t;
       }
     });
     const tonersRecentes = Object.values(tonersPorCor);
 
-    // ERRO CORRIGIDO 1: Agora o map retorna os dados agrupados corretamente
     return { ...imp, ultimoContadorGlobal, usoNoAno, tonersRecentes };
   });
 
-  // ERRO CORRIGIDO 2: Recriando as variáveis do Ranking e Alertas
   // Ranking baseado no Uso Real
   const rankingUso = [...impressorasProcessadas]
     .sort((a, b) => b.usoNoAno - a.usoNoAno)
@@ -85,10 +87,10 @@ export default async function Dashboard() {
     if (nomeBaixo.includes('gráfica') || modeloBaixo.includes('gráfica')) return [];
 
     return imp.tonersRecentes
-      .filter((t: any) => t.qtd_toner <= 15)
+      .filter((t: any) => Number(t.qtd_toner) <= 15)
       .map((t: any) => ({
         unidade: imp.nome_maquina,
-        nivel: t.qtd_toner,
+        nivel: Number(t.qtd_toner),
         cor: t.cor_toner
       }));
   });
@@ -201,12 +203,12 @@ export default async function Dashboard() {
                       <div key={t.id}>
                         <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter mb-2 text-slate-500">
                           <span>Toner {t.cor_toner || 'Padrão'}</span>
-                          <span className={t.qtd_toner <= 15 ? 'text-rose-600' : 'text-slate-700'}>{t.qtd_toner}%</span>
+                          <span className={Number(t.qtd_toner) <= 15 ? 'text-rose-600' : 'text-slate-700'}>{t.qtd_toner}%</span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner">
                           <div 
                             className={`h-full transition-all duration-700 ease-out ${
-                              t.qtd_toner >= 50 ? 'bg-emerald-500' : t.qtd_toner >= 15 ? 'bg-amber-400' : 'bg-rose-500'
+                              Number(t.qtd_toner) >= 50 ? 'bg-emerald-500' : Number(t.qtd_toner) >= 15 ? 'bg-amber-400' : 'bg-rose-500'
                             }`}
                             style={{ width: `${t.qtd_toner}%` }}
                           ></div>
