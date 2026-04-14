@@ -140,7 +140,7 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
         <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex flex-col justify-center">
           <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-            Meta de Consumo ({anoAtualParaTitulo})
+            Expectativa de Consumo ({anoAtualParaTitulo})
           </p>
           <p className="text-lg font-black text-amber-700">
             {META_ANUAL.toLocaleString('pt-BR')} <span className="text-sm font-bold text-amber-500">págs</span>

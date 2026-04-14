@@ -104,7 +104,7 @@ export default async function Dashboard() {
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tight">Monitoramento SME</h1>
+            <h1 className="text-3xl font-black tracking-tight">Monitoramento das Impressoras</h1>
             <p className="text-slate-500 font-medium mt-1">Análise de desempenho e suprimentos</p>
           </div>
         </div>
@@ -216,7 +216,7 @@ export default async function Dashboard() {
                     <p className="text-xl font-black text-blue-600">+{imp.usoNoAno.toLocaleString('pt-BR')}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Odometer</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Contador Total</p>
                     <p className="text-sm font-bold text-slate-700">{imp.ultimoContadorGlobal.toLocaleString('pt-BR')}</p>
                   </div>
                 </div>
