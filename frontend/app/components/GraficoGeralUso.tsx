@@ -197,7 +197,7 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
               activeDot={{ r: 6, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }} 
             />
 
-            {/* C) Linha de Meta Fixa de 600k */}
+            {/* C) Linha de Expectativa Fixa de 600k */}
             <Line 
               type="monotone" 
               dataKey="MetaAnual" 
