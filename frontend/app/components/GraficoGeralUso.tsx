@@ -2,14 +2,8 @@
 
 import { useMemo } from 'react';
 import {
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Area,
-  ComposedChart,
-  Line
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Area, ComposedChart, Line
 } from 'recharts';
 
 export default function GraficoGeralUso({ impressoras }: { impressoras: any[] }) {
@@ -17,15 +11,13 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
   const dadosProcessados = useMemo(() => {
     const dataAtual = new Date();
     const anoAtual = dataAtual.getFullYear();
-    const mesAtual = dataAtual.getMonth(); // 0 a 11
+    const mesAtual = dataAtual.getMonth(); 
 
     const mesesLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const totalPorMes: Record<number, number> = {};
 
-    // 1. Inicializar os meses a zero
     mesesLabels.forEach((_, i) => totalPorMes[i] = 0);
 
-    // 2. Somar o uso de todas as impressoras (Com proteção contra Reset de Contador e conversão para Number)
     impressoras.forEach(imp => {
       const todasLeituras = [...(imp.tabelaContador || [])].sort(
         (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -35,11 +27,11 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
       const leiturasAnteriores = todasLeituras.filter((c: any) => new Date(c.created_at).getFullYear() < anoAtual);
 
       if (contadoresAno.length > 0) {
-        // Garantir que a base é um Número
         let valorAnterior = leiturasAnteriores.length > 0 
           ? Number(leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador) 
           : Number(contadoresAno[0].qtd_contador);
         
+        let maiorContadorConhecido = valorAnterior;
         let usoAcumulado = 0;
         const usoMesAMes: Record<number, number> = {};
 
@@ -47,21 +39,24 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
           const mes = new Date(c.created_at).getMonth();
           const contadorAtual = Number(c.qtd_contador);
           
-          // Lógica anti-negativo estrita com Number: Se o contador caiu, foi resetado/trocado.
           if (contadorAtual >= valorAnterior) {
-            usoAcumulado += (contadorAtual - valorAnterior);
-          } else {
-            usoAcumulado += contadorAtual; 
+            if (valorAnterior < maiorContadorConhecido && contadorAtual > maiorContadorConhecido) {
+              usoAcumulado += (contadorAtual - maiorContadorConhecido);
+            } else {
+              usoAcumulado += (contadorAtual - valorAnterior);
+            }
           }
-          valorAnterior = contadorAtual; // Atualiza para a próxima volta
 
-          // Guarda sempre o maior valor acumulado alcançado no mês
+          valorAnterior = contadorAtual;
+          if (contadorAtual > maiorContadorConhecido) {
+            maiorContadorConhecido = contadorAtual;
+          }
+
           if (usoMesAMes[mes] === undefined || usoAcumulado > usoMesAMes[mes]) {
             usoMesAMes[mes] = usoAcumulado;
           }
         });
 
-        // Adiciona ao bolo da SME
         let ultimoUsoConhecido = 0;
         for (let i = 0; i <= mesAtual; i++) {
           if (usoMesAMes[i] !== undefined) {
@@ -72,12 +67,10 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
       }
     });
 
-    // 3. CÁLCULO DE PREVISÃO CORRIGIDO
     const totalAteAgora = totalPorMes[mesAtual] || 0;
     const mesesPassados = mesAtual + 1; 
     const mediaMensalCrescimento = mesesPassados > 0 ? Math.round(totalAteAgora / mesesPassados) : 0;
 
-    // 4. Montar os dados para o Recharts
     return mesesLabels.map((mes, index) => {
       if (index <= mesAtual) {
         return {
@@ -108,15 +101,8 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-          <XAxis 
-            dataKey="mes" 
-            axisLine={false} 
-            tickLine={false} 
-            tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
-            dy={10}
-          />
+          <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} dy={10} />
           <YAxis hide domain={['dataMin', 'dataMax + 1000']} />
-          
           <Tooltip 
             cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '5 5' }}
             contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px 16px' }}
@@ -126,26 +112,8 @@ export default function GraficoGeralUso({ impressoras }: { impressoras: any[] })
             ]}
             labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '8px' }}
           />
-
-          <Area 
-            type="monotone" 
-            dataKey="Realizado" 
-            stroke="#3b82f6" 
-            strokeWidth={3} 
-            fill="url(#colorRealizado)" 
-            dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
-            activeDot={{ r: 6, strokeWidth: 0 }}
-          />
-
-          <Line 
-            type="monotone" 
-            dataKey="Previsao" 
-            stroke="#94a3b8" 
-            strokeWidth={2} 
-            strokeDasharray="5 5" 
-            dot={false}
-            activeDot={{ r: 5, fill: '#94a3b8', stroke: '#fff', strokeWidth: 2 }}
-          />
+          <Area type="monotone" dataKey="Realizado" stroke="#3b82f6" strokeWidth={3} fill="url(#colorRealizado)" dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6, strokeWidth: 0 }} />
+          <Line type="monotone" dataKey="Previsao" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={{ r: 5, fill: '#94a3b8', stroke: '#fff', strokeWidth: 2 }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

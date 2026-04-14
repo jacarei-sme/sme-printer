@@ -29,8 +29,7 @@ export default async function Dashboard() {
   // --- PROCESSAMENTO INTELIGENTE DE DADOS ---
   const impressorasProcessadas = impressoras.map(imp => {
     
-    // 1. CÁLCULO DE CONTADORES (Com conversão forçada para Number e clone de array)
-    const todasLeituras = [...(imp.tabelaContador || [])].sort(
+    const todasLeituras = (imp.tabelaContador || []).sort(
       (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
     
@@ -45,27 +44,34 @@ export default async function Dashboard() {
       ? Number(leiturasAnteriores[leiturasAnteriores.length - 1].qtd_contador) 
       : (contadoresAno.length > 0 ? Number(contadoresAno[0].qtd_contador) : 0);
 
+    // Variável para proteger contra pulos fantasmas de leitura (Glitch Bounce-back)
+    let maiorContadorConhecido = valorAnterior;
     let usoNoAno = 0;
 
     contadoresAno.forEach((c: any) => {
-      // CORREÇÃO CRÍTICA: Garante que os valores são tratados como matemática e não texto
       const contadorAtual = Number(c.qtd_contador);
 
       if (contadorAtual >= valorAnterior) {
-        usoNoAno += (contadorAtual - valorAnterior);
-      } else {
-        // Se a contagem diminuiu de forma real, a máquina foi resetada. Soma apenas o valor novo.
-        usoNoAno += contadorAtual;
-      }
+        // Se houve uma queda antes e agora o contador saltou de volta ao patamar antigo
+        if (valorAnterior < maiorContadorConhecido && contadorAtual > maiorContadorConhecido) {
+          usoNoAno += (contadorAtual - maiorContadorConhecido);
+        } else {
+          usoNoAno += (contadorAtual - valorAnterior);
+        }
+      } 
+      // Se contadorAtual < valorAnterior (Queda/Troca detectada): 
+      // Não somamos NADA para evitar injetar o odômetro absoluto no uso.
+
       valorAnterior = contadorAtual;
+      if (contadorAtual > maiorContadorConhecido) {
+        maiorContadorConhecido = contadorAtual;
+      }
     });
 
-    // 2. FILTRAR TONER (Apenas o mais recente de cada cor)
     const tonersPorCor: Record<string, any> = {};
     (imp.tabelaToner || []).forEach((t: any) => {
       const cor = t.cor_toner || 'Preto';
-      // Garante que o ID compara números corretamente
-      if (!tonersPorCor[cor] || Number(t.id) > Number(tonersPorCor[cor].id)) {
+      if (!tonersPorCor[cor] || t.id > tonersPorCor[cor].id) {
         tonersPorCor[cor] = t;
       }
     });
@@ -74,35 +80,28 @@ export default async function Dashboard() {
     return { ...imp, ultimoContadorGlobal, usoNoAno, tonersRecentes };
   });
 
-  // Ranking baseado no Uso Real
   const rankingUso = [...impressorasProcessadas]
     .sort((a, b) => b.usoNoAno - a.usoNoAno)
     .slice(0, 5);
 
-  // Alertas de Toner
   const alertasToner = impressorasProcessadas.flatMap(imp => {
     const nomeBaixo = imp.nome_maquina?.toLowerCase() || "";
     const modeloBaixo = imp.modelo_impressora?.toLowerCase() || "";
-    
     if (nomeBaixo.includes('gráfica') || modeloBaixo.includes('gráfica')) return [];
-
     return imp.tonersRecentes
-      .filter((t: any) => Number(t.qtd_toner) <= 15)
+      .filter((t: any) => t.qtd_toner <= 15)
       .map((t: any) => ({
         unidade: imp.nome_maquina,
-        nivel: Number(t.qtd_toner),
+        nivel: t.qtd_toner,
         cor: t.cor_toner
       }));
   });
 
-  // Total Acumulado Geral da SME
   const totalVolumeSME = impressorasProcessadas.reduce((acc, imp) => acc + imp.usoNoAno, 0);
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans text-slate-900">
       <div className="max-w-7xl mx-auto">
-        
-        {/* Cabeçalho */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
           <div>
             <h1 className="text-3xl font-black tracking-tight">Monitoramento SME</h1>
@@ -110,10 +109,7 @@ export default async function Dashboard() {
           </div>
         </div>
 
-        {/* Dashboard Superior */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          
-          {/* Unidades Mais Ativas */}
           <div className="lg:col-span-1 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
               <span className="w-2 h-4 bg-blue-600 rounded-full"></span>
@@ -135,7 +131,6 @@ export default async function Dashboard() {
             </div>
           </div>
 
-          {/* Alertas Críticos */}
           <div className="lg:col-span-2 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
               <span className="w-2 h-4 bg-rose-500 rounded-full"></span>
@@ -164,7 +159,6 @@ export default async function Dashboard() {
           </div>
         </div>
 
-        {/* --- GRÁFICO GERAL --- */}
         <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 mb-12">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <div>
@@ -178,37 +172,32 @@ export default async function Dashboard() {
               </span>
             </div>
           </div>
-          
           <GraficoGeralUso impressoras={impressorasProcessadas} />
         </div>
 
-        {/* Lista Completa */}
         <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 ml-2">Lista de Equipamentos</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
           {impressorasProcessadas.map((imp) => (
             <Link href={`/impressora/${imp.id}`} key={imp.id}>
               <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all duration-300 group flex flex-col h-full">
-                
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors">{imp.nome_maquina}</h3>
                     <p className="text-sm text-slate-400 font-medium">{imp.modelo_impressora}</p>
                   </div>
                 </div>
-
-                {/* Status dos Toners */}
                 <div className="space-y-4 mb-8">
                   {imp.tonersRecentes.length > 0 ? (
                     imp.tonersRecentes.map((t: any) => (
                       <div key={t.id}>
                         <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter mb-2 text-slate-500">
                           <span>Toner {t.cor_toner || 'Padrão'}</span>
-                          <span className={Number(t.qtd_toner) <= 15 ? 'text-rose-600' : 'text-slate-700'}>{t.qtd_toner}%</span>
+                          <span className={t.qtd_toner <= 15 ? 'text-rose-600' : 'text-slate-700'}>{t.qtd_toner}%</span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner">
                           <div 
                             className={`h-full transition-all duration-700 ease-out ${
-                              Number(t.qtd_toner) >= 50 ? 'bg-emerald-500' : Number(t.qtd_toner) >= 15 ? 'bg-amber-400' : 'bg-rose-500'
+                              t.qtd_toner >= 50 ? 'bg-emerald-500' : t.qtd_toner >= 15 ? 'bg-amber-400' : 'bg-rose-500'
                             }`}
                             style={{ width: `${t.qtd_toner}%` }}
                           ></div>
@@ -221,8 +210,6 @@ export default async function Dashboard() {
                     </div>
                   )}
                 </div>
-
-                {/* Info de Uso no Rodapé */}
                 <div className="mt-auto pt-6 border-t border-slate-50 flex justify-between items-end">
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Uso no Ano</p>
@@ -233,7 +220,6 @@ export default async function Dashboard() {
                     <p className="text-sm font-bold text-slate-700">{imp.ultimoContadorGlobal.toLocaleString('pt-BR')}</p>
                   </div>
                 </div>
-
               </div>
             </Link>
           ))}
