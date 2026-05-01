@@ -50,8 +50,6 @@ def buscar_id_grupo_zabbix(nome_grupo):
     try:
         resposta_bruta = requests.post(ZABBIX_URL, json=payload).json()
         
-        # === MÁGICA DO DEBUG ===
-        # Se o Zabbix retornar um erro, nós pegamos a mensagem exata dele!
         if 'error' in resposta_bruta:
             print(f"\n❌ O Zabbix bloqueou o pedido!")
             print(f"Motivo detalhado do Zabbix: {resposta_bruta['error']['data']}")
