@@ -2,9 +2,13 @@
 
 Repositório destinado ao controle de versão dos scripts e códigos do **Projeto Integrador III da Univesp (1º Semestre de 2026) - Grupo 09**.
 
-## 📌 Sobre o Projeto
+Adicionado os [Arquivos](https://github.com/jacarei-sme/sme-printer/tree/main/Arquivos) PDF entregues ao final do projeto, estando disponíveis em: 
+[Relatório Final](https://github.com/jacarei-sme/sme-printer/blob/main/Arquivos/Relat%C3%B3rio%20Final%20Grupo%2009.pdf)
+[Ficha de Prototipagem e Vídeo](https://github.com/jacarei-sme/sme-printer/blob/main/Arquivos/Ficha%20de%20Prototipagem%20e%20de%20V%C3%ADdeo%20-%20Grupo%2009.pdf)
+[Apresentação do Projeto](https://github.com/jacarei-sme/sme-printer/blob/main/Arquivos/Apresenta%C3%A7%C3%A3o%20Grupo%209.pdf)
 
-A gestão eficiente de recursos é um desafio constante na administração pública.
+## Sobre o Projeto
+
 Este projeto tem como objetivo desenvolver um sistema automatizado de monitoramento e análise de uso do parque de impressão da Secretaria de Educação da Prefeitura Municipal de Jacareí. 
 Atualmente, os dados gerados pelas impressoras (como níveis de toner e contadores de páginas) não são monitorados ativamente pela Unidade de Tecnologias Educacionais, sendo apenas enviados à empresa locadora, o que gera ineficiências.
 O SME-PRINTER visa automatizar a coleta e análise desses dados para embasar a tomada de decisão, otimizar a gestão de suprimentos e promover a redução de custos operacionais.
@@ -27,7 +31,7 @@ A infraestrutura tecnológica do projeto baseia-se nas seguintes ferramentas e s
 * **Sistema Operacional:** Linux Mint 22.2, utilizando o agendador de tarefas `crontab` para execuções diárias.
 * **Frontend:** Next.js (React).
 
-## 👥 Equipe
+## Equipe
 **Grupo 09 - Ciências de Dados (Univesp - Polo Jambeiro, 2026)**
 * Elton Felipe Mariano da Fonseca
 * **Tutor:** Marcio de Oliveira Santiago Filho
