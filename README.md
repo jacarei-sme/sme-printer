@@ -32,7 +32,7 @@ A infraestrutura tecnológica do projeto baseia-se nas seguintes ferramentas e s
 * **Monitoramento e Protocolos:** Zabbix 6.0 e SNMP (Simple Network Management Protocol). O utilitário `snmpwalk` foi utilizado para mapear os OIDs de capacidade máxima e nível restante de toner.
 * **Banco de Dados:** PostgreSQL hospedado na plataforma Supabase.
 * **Sistema Operacional:** Linux Mint 22.2, utilizando o agendador de tarefas `crontab` para execuções diárias.
-* **Frontend:** Next.js (React).
+* **Frontend:** Next.js (React) rodando na plataforma Vercel.
 
 ## Equipe
 **Grupo 09 - Ciências de Dados (Univesp - Polo Jambeiro, 2026)**
