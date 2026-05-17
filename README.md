@@ -3,8 +3,11 @@
 Repositório destinado ao controle de versão dos scripts e códigos do **Projeto Integrador III da Univesp (1º Semestre de 2026) - Grupo 09**.
 
 Adicionado os [Arquivos](https://github.com/jacarei-sme/sme-printer/tree/main/Arquivos) PDF entregues ao final do projeto, estando disponíveis em: 
+
 [Relatório Final](https://github.com/jacarei-sme/sme-printer/blob/main/Arquivos/Relat%C3%B3rio%20Final%20Grupo%2009.pdf)
+
 [Ficha de Prototipagem e Vídeo](https://github.com/jacarei-sme/sme-printer/blob/main/Arquivos/Ficha%20de%20Prototipagem%20e%20de%20V%C3%ADdeo%20-%20Grupo%2009.pdf)
+
 [Apresentação do Projeto](https://github.com/jacarei-sme/sme-printer/blob/main/Arquivos/Apresenta%C3%A7%C3%A3o%20Grupo%209.pdf)
 
 ## Sobre o Projeto
